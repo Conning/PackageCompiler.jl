@@ -129,9 +129,10 @@ end
 
 function resolve_package(ctx, pkg::String)
     manifest = ctx.env.manifest
-    for (uuid, pkgspec) in manifest
-        if pkgspec.name == pkg
-            return Base.PkgId(uuid, pkg)
+    for (key, pkgspec) in manifest
+        myuuid = UUID(pkgspec[1]["uuid"])
+        if key == pkg
+            return Base.PkgId(myuuid, pkg)
         end
     end
     return nothing
@@ -141,10 +142,11 @@ function resolve_packages(ctx, pkgs::Vector{String}, allow_unresolved = false)
     manifest = ctx.env.manifest
     result = Set{Pkg.Types.PackageSpec}()
     pkgs_copy = copy(pkgs)
-    for (uuid, pkgspec) in manifest
-        idx = findfirst(x-> string(pkgspec.name) === x, pkgs_copy)
+    for (key, pkgspec) in manifest
+        idx = findfirst(isequal(key), pkgs_copy)
         if idx !== nothing
-            push!(result, PackageSpec(name = pkgs_copy[idx], uuid = uuid))
+            myuuid = UUID(pkgspec[1]["uuid"])
+            push!(result, PackageSpec(name = pkgs_copy[idx], uuid = myuuid))
             splice!(pkgs_copy, idx)
         end
     end
@@ -154,15 +156,17 @@ function resolve_packages(ctx, pkgs::Vector{String}, allow_unresolved = false)
     return result
 end
 
-
 function resolve_packages(ctx, pkgs::Set{Base.UUID})
     manifest = ctx.env.manifest
     result = Set{Pkg.Types.PackageSpec}()
     pkgs_copy = copy(pkgs)
-    for (uuid, pkgspec) in manifest
-        if uuid in pkgs
-            push!(result, PackageSpec(name = pkgspec.name, uuid = uuid))
-            delete!(pkgs_copy, uuid)
+    for (key, pkgspec) in manifest # returns
+        #@show uuid, pkgspec
+        # (key, pkgspec) = ("Unicode", Dict{String,Any}[Dict("uuid"=>"4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5")])
+        myuuid = UUID(pkgspec[1]["uuid"])
+        if myuuid in pkgs
+            push!(result, PackageSpec(name=key, uuid=myuuid))
+            delete!(pkgs_copy, myuuid)
         end
     end
     if !isempty(pkgs_copy)
@@ -171,7 +175,19 @@ function resolve_packages(ctx, pkgs::Set{Base.UUID})
     return result
 end
 
-get_deps(manifest, uuid) = manifest[uuid].deps
+function get_deps(manifest, uuid)
+    for (k,v) in manifest
+        if(UUID(v[1]["uuid"]) == uuid)
+            if haskey(v[1], "deps")
+                return v[1]["deps"]
+            else
+                return []
+            end
+        end
+    end
+    @warn "Could not find $uuid in the current Pkg.Types.Context()"
+    return [] # manifest[uuid].deps
+end
 
 function topo_deps(manifest, uuids::Vector{UUID})
     result = Dict{UUID, Any}()
@@ -186,8 +202,8 @@ end
 function topo_deps(manifest, uuid::UUID)
     result = Dict{UUID, Any}()
     for (name, uuid) in get_deps(manifest, uuid)
-        get!(result, uuid) do
-            topo_deps(manifest, uuid)
+        get!(result, UUID(uuid)) do
+            topo_deps(manifest, UUID(uuid))
         end
     end
     result
@@ -226,7 +242,7 @@ end
 function extract_used_packages(file::String)
     namespaces = unique(extract_used_modules(read(file, String)))
     # only use names that are resolvable
-    return resolve_packages(Pkg.Types.Context(), namespaces, true)
+    return resolve_packages(Pkg.Types.Context(), namespaces, true) # remove the true?
 end
 
 

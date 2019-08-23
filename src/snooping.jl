@@ -181,7 +181,7 @@ function snoop_packages(
     missing_pkgs = not_installed(Types.PackageSpec[direct_test_deps...])
     if install && !isempty(missing_pkgs)
         Pkg.API.add(ctx, missing_pkgs)
-    elseif isempty(missing_pkgs)
+    elseif !isempty(missing_pkgs)
         @warn("The following test dependencies are not installed: $missing_pkgs.
         Snooping based on test scripts will likely fail.
         Please use `install = true` or install those packages manually")

@@ -176,9 +176,14 @@ function resolve_packages(ctx, pkgs::Set{Base.UUID})
 end
 
 function get_deps(manifest, uuid)
+    global all_deps
+    if uuid in all_deps
+        return []
+    end
     for (k,v) in manifest
         if(UUID(v[1]["uuid"]) == uuid)
             if haskey(v[1], "deps")
+                push!(all_deps, uuid)
                 return v[1]["deps"]
             else
                 return []
@@ -219,6 +224,7 @@ end
 
 function flat_deps(ctx::Pkg.Types.Context, pkg_names::AbstractVector{String})
     manifest = ctx.env.manifest
+    global all_deps = []
     return flat_deps(ctx, resolve_packages(ctx, pkg_names))
 end
 

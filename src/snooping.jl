@@ -94,6 +94,12 @@ function snoop(snoopfile::String, output_io::IO; verbose = false)
     debug = verbose ? "@info" : "@debug"
     for line in eachline(tmp_file)
         line_idx += 1
+
+        # skip over "Open Code" calls that will likely break precompiling
+        if ! startswith(line, "precompile(")
+            continue
+        end
+
         # replace function instances, which turn up as typeof(func)().
         # TODO why would they be represented in a way that doesn't actually work?
         line = replace(line, r"typeof\(([\u00A0-\uFFFF\w_!´\.]*@?[\u00A0-\uFFFF\w_!´]+)\)\(\)" => s"\1")

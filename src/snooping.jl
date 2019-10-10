@@ -112,6 +112,9 @@ function snoop(snoopfile::String, output_io::IO; verbose = false)
                 # after all this, we still need to wrap into try catch,
                 # since some anonymous symbols won't be found...
                 union!(packages, extract_used_modules(line))
+
+                line = replace(line, r";\s*$" => "")
+
                 println(tmp_io,
                     "try; global _precompiles_actually_executed; $line || error(\"Failed to precompile\");",
                     "_precompiles_actually_executed += 1 ;catch e;",

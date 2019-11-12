@@ -119,7 +119,7 @@ function compile_package(
         ispackage = all(x-> !occursin(Base.Filesystem.path_separator, x), first.(packages))
         isruntests = all(x-> x == "test/runtests.jl", last.(packages))
         if ispackage && isruntests
-            snoop_packages([first.(packages)...], userimg)
+            snoop_packages([first.(packages)...], userimg; verbose = verbose)
         else
             ispackage || @warn "Giving path to package deprecated. Use Package name!"
             isruntests || @warn "Giving a snoopfile is deprecated. Use runtests from package!"

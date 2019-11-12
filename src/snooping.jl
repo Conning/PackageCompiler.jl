@@ -93,7 +93,7 @@ function snoop(snoopfile::String, output_io::IO; verbose = false)
         # Concatenate this file to tmp_file.
         open(tmp_file, "a") do io
             println(io, "##### Items below here have been copied from $injected_trace_compile_file")
-            data = open(readavailable, injected_trace_compile_file)
+            data = open(read, injected_trace_compile_file)
             write(io, data)
             println("Copied $(length(data)) bytes.")
         end

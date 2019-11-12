@@ -87,6 +87,19 @@ function snoop(snoopfile::String, output_io::IO; verbose = false)
     tmp_file = package_folder("precompile_tmp.jl")
     # Use current project for snooping!
     run_julia(command, compile = "all", O = 0, g = 1, trace_compile = tmp_file, project = current_project())
+    injected_trace_compile_file = joinpath(dirname(snoopfile), "precompile.jl")
+    if isfile(injected_trace_compile_file)
+        println("Appending $injected_trace_compile_file to $tmp_file.")
+        # Concatenate this file to tmp_file.
+        open(tmp_file, "a") do io
+            println(io, "##### Items below here have been copied from $injected_trace_compile_file")
+            data = open(readavailable, injected_trace_compile_file)
+            write(io, data)
+            println("Copied $(length(data)) bytes.")
+        end
+    else
+        println(stderr, "Warning: Injection trace compile file $injected_trace_compile_file doesn't exist.")
+    end
     line_idx = 0; missed = 0
     tmp_io = IOBuffer()
     println(tmp_io, "global _precompiles_actually_executed = 0")

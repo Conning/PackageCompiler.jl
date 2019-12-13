@@ -129,10 +129,18 @@ end
 
 function resolve_package(ctx, pkg::String)
     manifest = ctx.env.manifest
-    for (key, pkgspec) in manifest
-        myuuid = UUID(pkgspec[1]["uuid"])
-        if key == pkg
-            return Base.PkgId(myuuid, pkg)
+    if VERSION < v"1.2.0"
+        for (key, pkgspec) in manifest
+            myuuid = UUID(pkgspec[1]["uuid"])
+            if key == pkg
+                return Base.PkgId(myuuid, pkg)
+            end
+        end
+    else
+        for (uuid, pkgentry) in manifest
+            if pkg == pkgentry.name
+                return Base.PkgId(uuid, pkg)
+            end
         end
     end
     return nothing
@@ -140,15 +148,26 @@ end
 
 function resolve_packages(ctx, pkgs::Vector{String}, allow_unresolved = false)
     manifest = ctx.env.manifest
+    println("In resolve packages")
     result = Set{Pkg.Types.PackageSpec}()
     pkgs_copy = copy(pkgs)
-    for (key, pkgspec) in manifest
-        idx = findfirst(isequal(key), pkgs_copy)
-        if idx !== nothing
-            myuuid = UUID(pkgspec[1]["uuid"])
-            push!(result, PackageSpec(name = pkgs_copy[idx], uuid = myuuid))
-            splice!(pkgs_copy, idx)
-        end
+    if VERSION < v"1.2.0"
+      for (key, pkgspec) in manifest
+          idx = findfirst(isequal(key), pkgs_copy)
+          if idx !== nothing
+              myuuid = UUID(pkgspec[1]["uuid"])
+              push!(result, PackageSpec(name = pkgs_copy[idx], uuid = myuuid))
+              splice!(pkgs_copy, idx)
+          end
+      end
+    else
+      for (uuid, pkgspec) in manifest
+          idx = findfirst(x->isequal(pkgspec.name, x), pkgs_copy)
+          if idx !== nothing
+              push!(result, PackageSpec(name = pkgs_copy[idx], uuid = uuid))
+              splice!(pkgs_copy, idx)
+          end
+      end
     end
     if !isempty(pkgs_copy) && !allow_unresolved
         error("Could not resolve the following packages: $(pkgs_copy)")
@@ -160,13 +179,26 @@ function resolve_packages(ctx, pkgs::Set{Base.UUID})
     manifest = ctx.env.manifest
     result = Set{Pkg.Types.PackageSpec}()
     pkgs_copy = copy(pkgs)
-    for (key, pkgspec) in manifest # returns
-        #@show uuid, pkgspec
-        # (key, pkgspec) = ("Unicode", Dict{String,Any}[Dict("uuid"=>"4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5")])
-        myuuid = UUID(pkgspec[1]["uuid"])
-        if myuuid in pkgs
-            push!(result, PackageSpec(name=key, uuid=myuuid))
-            delete!(pkgs_copy, myuuid)
+    if VERSION < v"1.2.0"
+        for (key, pkgspec) in manifest # returns
+            #@show uuid, pkgspec
+            # (key, pkgspec) = ("Unicode", Dict{String,Any}[Dict("uuid"=>"4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5")])
+            myuuid = UUID(pkgspec[1]["uuid"])
+            if myuuid in pkgs
+                push!(result, PackageSpec(name=key, uuid=myuuid))
+                delete!(pkgs_copy, myuuid)
+            end
+        end
+    else
+        # take the list of pkg uuids, find each in the manifest, and translate to package specs
+        for uuid in pkgs
+            if haskey(manifest, uuid)
+                delete!(pkgs_copy, uuid)
+                pkgentry = manifest[uuid]
+                pkgspec = Pkg.Types.PackageSpec(pkgentry.name, uuid)
+                Pkg.Operations.update_package_test!(pkgspec, pkgentry)
+                push!(result, pkgspec)
+            end
         end
     end
     if !isempty(pkgs_copy)
@@ -180,15 +212,26 @@ function get_deps(manifest, uuid)
     if uuid in all_deps
         return []
     end
-    for (k,v) in manifest
-        if(UUID(v[1]["uuid"]) == uuid)
-            if haskey(v[1], "deps")
-                push!(all_deps, uuid)
-                return v[1]["deps"]
-            else
-                return []
+    if VERSION < v"1.2.0"
+        for (k,v) in manifest
+            if(UUID(v[1]["uuid"]) == uuid)
+                if haskey(v[1], "deps")
+                    push!(all_deps, uuid)
+                    return v[1]["deps"]
+                else
+                    return []
+                end
             end
         end
+    else
+        pkgs = Vector{Pkg.Types.PackageSpec}()
+        deps = Pkg.Operations.load_direct_deps!(Pkg.Types.Context(), pkgs)
+        deps_uuids = []
+        for dep in something(deps, [])
+            push!(deps_uuids, dep.uuid)
+        end
+        append!(all_deps, deps_uuids)
+        return deps_uuids
     end
     @warn "Could not find $uuid in the current Pkg.Types.Context()"
     return [] # manifest[uuid].deps

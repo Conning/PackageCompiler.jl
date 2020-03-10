@@ -259,19 +259,10 @@ function build_object(
     command *= ExitHooksEnd()
     verbose && println("Build static library $(repr(o_file)):\n  $command")
     cd(builddir) do
-        try
-            run_julia(
-                command; julia_flags...,
-                output_o = o_file, track_allocation = "none", code_coverage = "none"
-            )
-        catch e
-            showerror(stderr, e, catch_backtrace())
-            println("Retrying build after error.")
-            run_julia(
-                command; julia_flags...,
-                output_o = o_file, track_allocation = "none", code_coverage = "none"
-            )
-        end
+        run_julia(
+            command; julia_flags...,
+            output_o = o_file, track_allocation = "none", code_coverage = "none"
+        )
     end
 end
 
